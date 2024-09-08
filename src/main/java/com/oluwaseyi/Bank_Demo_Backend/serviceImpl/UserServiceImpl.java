@@ -5,8 +5,10 @@ import java.math.BigInteger;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 // import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -70,7 +72,7 @@ public class UserServiceImpl implements UserService {
                                         .build();
                 }
 
-                // After checking if it doesnt exisit then create an account for the user by
+                // After checking if it doesn't exist then create an account for the user by
                 // providing this from these infos from the client side
                 User newUser = User.builder().firstName(userRequest.getFirstName())
                                 .lastName(userRequest.getLastName())
@@ -121,25 +123,28 @@ public class UserServiceImpl implements UserService {
         }
 
         public BankResponse login(LoginDto loginDto) {
-                Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(loginDto.getEmail(), loginDto.getPassword())
-                );
-            
-                // Temporarily comment out the email sending logic
-                // EmailDetails loginAlert = EmailDetails.builder()
-                //     .subject("You are logged in")
-                //     .receipient(loginDto.getEmail())
-                //     .messageBody("You logged into your account")
-                //     .build();
-            
-                // emailService.sendEmailAlert(loginAlert);
-            
-                return BankResponse.builder()
-                    .respondCode("Login Success")
-                    .responseMessage(jwtTokenProvider.generateToken(authentication))
-                    .build();
-            }
-            
+                try {
+                        Authentication authentication = authenticationManager.authenticate(
+                                new UsernamePasswordAuthenticationToken(loginDto.getEmail(), loginDto.getPassword())
+                        );
+
+                        return BankResponse.builder()
+                                .responseMessage(jwtTokenProvider.generateToken(authentication))
+                                .respondCode("00") // Success code
+                                .build();
+
+                } catch (AuthenticationException ex) {
+                        // If the authentication fails, catch the exception and return an error response
+                        String errorMessage = (ex instanceof BadCredentialsException)
+                                ? "Invalid email or password"
+                                : "Authentication failed";
+
+                        return BankResponse.builder()
+                                .responseMessage(errorMessage)
+                                .respondCode("99") // Failure code
+                                .build();
+                }
+        }
 
         // An implementation class to check the balance of an account
         @Override
@@ -179,7 +184,7 @@ public class UserServiceImpl implements UserService {
         // An implementation class to credit a particular account
         @Override
         public BankResponse creditAccount(CreditDebitRequest creditDebitRequest) {
-                Boolean isAccountExist = userRepository.existsByAccountNumber(creditDebitRequest.getAccountNumber());
+                boolean isAccountExist = userRepository.existsByAccountNumber(creditDebitRequest.getAccountNumber());
 
                 if (!isAccountExist) {
                         return BankResponse.builder()
@@ -218,7 +223,7 @@ public class UserServiceImpl implements UserService {
         // An implementation class to debit a particular account
         @Override
         public BankResponse debitAccount(CreditDebitRequest creditDebitRequest) {
-                Boolean isAccountExist = userRepository.existsByAccountNumber(creditDebitRequest.getAccountNumber());
+                boolean isAccountExist = userRepository.existsByAccountNumber(creditDebitRequest.getAccountNumber());
                 if (!isAccountExist) { // Change this condition
                         return BankResponse.builder()
                                         .respondCode(AccountUtils.ACCOUNT_DO_NOT_EXIST_CODE)
